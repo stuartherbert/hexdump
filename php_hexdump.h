@@ -17,6 +17,9 @@ extern zend_module_entry hexdump_module_entry;
 #endif
 
 PHP_MINIT_FUNCTION(hexdump);
+PHP_MSHUTDOWN_FUNCTION(hexdump);
+PHP_RINIT_FUNCTION(hexdump);
+PHP_RSHUTDOWN_FUNCTION(hexdump);
 PHP_MINFO_FUNCTION(hexdump);
 
 PHP_FUNCTION(hex_dump);
