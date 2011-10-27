@@ -4,7 +4,6 @@
 
 #include "php.h"
 #include "php_ini.h"
-#include "php_smart_str.h"
 #include "ext/standard/info.h"
 #include "php_hexdump.h"
 
@@ -63,24 +62,31 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 	char *sp; /* pointer to walk through the src */
 	char *dp; /* pointer to walk through the dest */
 	int i = 0; /* keep count of where we are */
-	int asciiBufferSize = 16 + sizeof(PHP_EOL) + 1;
-	char asciiBuffer[asciiBufferSize]; /* helper buffer */
+	char asciiBuffer[18]; /* helper buffer */
+
+	/* a buffer of hex characters */
+	char * hexchars = "0123456789ABCDEF";
 
 	/* make sure the buffer is NULL-terminated!! */
-	asciiBuffer[asciiBufferSize - 1] = 0;
+	asciiBuffer[16] = '\n';
+	asciiBuffer[17] = 0;
 
 	/* 
 	 * converted length is ...
 	 *
-	 * * 3 for the bytes
-	 * +16 for the ascii display per line
-	 * +7 for the address display per line
-	 * +2 for the extra whitespace mid line, per line
-	 * +2 for the line ending per line
+	 * 77 bytes per line
+	 * (
+	 *   11 for the address display
+	 *   16 * 3 for the hex chars 
+	 *    1 for the extra whitespace mid line
+	 *   16 for the ascii display
+	 *    1 for the line ending
+	 * )
+	 * multiplied by the number of lines to display
 	 * +1 at the very end for NULL termination
 	 */
 
-	int line_len = 72 + sizeof(PHP_EOL);
+	int line_len = 77;
 	int dest_len = (src_len / 16) * line_len;
 	if (src_len % 16 > 0)
 	{
@@ -94,54 +100,60 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 	sp = src;
 	for(i = 0; i < src_len; i++, sp++)
 	{
+		int asciiBufferIndex = i % 16;
+
 		/* step 1:
 		 *
 		 * are we at the start of the line?
 		 */
-		if (0 == i % 16)
+		if (0 == asciiBufferIndex)
 		{
-			sprintf(dp, "[%.4x] ", i);
-			dp += 7;
+			sprintf(dp, "[%08x] ", i);
+			dp += 11;
 		}
 
 		/* step 2:
 		 *
 		 * work out the ASCII to show
 		 */
-		if (*sp < 32 || *sp > 127)
+		if (*sp < 32 || *sp > 126)
 		{
-			asciiBuffer[i % 16] = '.';
+			asciiBuffer[asciiBufferIndex] = '.';
 		}
 		else
 		{
-			asciiBuffer[i % 16] = *sp;
+			asciiBuffer[asciiBufferIndex] = *sp;
 		}
 
 		/* step 3:
 		 *
 		 * we need the hex, next
 		 */
-		sprintf(dp, "%02X ", *sp);
-		dp+=3;
+		*dp = hexchars[(*sp >> 4) & 0xF];
+		dp++;
+		*dp = hexchars[*sp & 0xF];
+		dp++;
+		*dp = ' ';
+		dp++;
 
 		/* step 4:
 		 *
 		 * are we in the middle of a line?
 		 */
-		if (7 == i % 16)
+		if (7 == asciiBufferIndex)
 		{
-			sprintf(dp, "  ");
-			dp+=2;
+			*dp = ' ';
+			dp++;
 		}
 
 		/* step 4:
 		 *
 		 * are we at the end of a line?
 		 */
-		if (15 == i % 16)
+		if (15 == asciiBufferIndex)
 		{
 			/* yes ... append the ascii buffer! */
-			sprintf(dp, "%s%s", &asciiBuffer[0], PHP_EOL);
+			strncat(dp, &asciiBuffer[0], sizeof(asciiBuffer));
 			dp+=sizeof(asciiBuffer);
 		}
 	}
@@ -160,12 +172,14 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 			dp++;
 		}
 
-		sprintf(dp, "%s%s", &asciiBuffer[0], PHP_EOL);
+		sprintf(dp, "%s\n", &asciiBuffer[0]);
 		dp += sizeof(asciiBuffer);
 	}
 
+	/*
 	printf("%s\n", *dest);
 	printf("len: %d; alloc'd size: %d\n", dp - *dest, dest_len);
+	 */
 
 	/* return the final length of the buffer */
 	return dp - *dest;
