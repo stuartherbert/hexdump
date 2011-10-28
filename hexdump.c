@@ -187,7 +187,7 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 	
 		/* add the final line ending */
 		*dp = ' ';
-		dp  = asciiBufferPtr + 1;
+		dp  = asciiBufferPtr;
 		*dp = '\n';
 		dp++;
 		*dp = 0;
@@ -196,7 +196,7 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 	/*
 	printf("%s--\n", *dest);
 	printf("len: %d; alloc'd size: %d\n", dp - *dest, dest_len);
-	*/
+	 */
 
 	/* return the final length of the buffer */
 	return dp - *dest;
