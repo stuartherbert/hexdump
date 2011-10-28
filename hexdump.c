@@ -62,14 +62,11 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 	char *sp; /* pointer to walk through the src */
 	char *dp; /* pointer to walk through the dest */
 	int i = 0; /* keep count of where we are */
-	char asciiBuffer[18]; /* helper buffer */
+	char *asciiBufferPtr; /* where we are writing the ascii to */
+	int asciiBufferIndex = 0; /* how far through the current line? */
 
 	/* a buffer of hex characters */
 	char * hexchars = "0123456789ABCDEF";
-
-	/* make sure the buffer is NULL-terminated!! */
-	asciiBuffer[16] = '\n';
-	asciiBuffer[17] = 0;
 
 	/* 
 	 * converted length is ...
@@ -86,21 +83,28 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 	 * +1 at the very end for NULL termination
 	 */
 
-	int line_len = 77;
+	int line_len = 78;
+	int hex_display_len = (16 * 3) + 11 + 2;
+
+	/* how long should the destination string be? */
 	int dest_len = (src_len / 16) * line_len;
 	if (src_len % 16 > 0)
 	{
 		dest_len += line_len;
 	}
 	dest_len++;
-	dp = *dest = emalloc((size_t) dest_len);
-	
-	/* line by line conversion */
 
+	/* allocate the memory where the hexdump will go */
+	dp = *dest = emalloc((size_t) dest_len);
+
+	/* we need to know where to start writing ascii output */
+	asciiBufferPtr = dp + hex_display_len;
+
+	/* line by line conversion */
 	sp = src;
-	for(i = 0; i < src_len; i++, sp++)
+	for(i = 0; i < src_len; i++, sp++, asciiBufferPtr++)
 	{
-		int asciiBufferIndex = i % 16;
+		asciiBufferIndex = i & 0xF;
 
 		/* step 1:
 		 *
@@ -118,11 +122,11 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 		 */
 		if (*sp < 32 || *sp > 126)
 		{
-			asciiBuffer[asciiBufferIndex] = '.';
+			*asciiBufferPtr = '.';
 		}
 		else
 		{
-			asciiBuffer[asciiBufferIndex] = *sp;
+			*asciiBufferPtr = *sp;
 		}
 
 		/* step 3:
@@ -153,17 +157,26 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 		if (15 == asciiBufferIndex)
 		{
 			/* yes ... append the ascii buffer! */
-			strncat(dp, &asciiBuffer[0], sizeof(asciiBuffer));
-			dp+=sizeof(asciiBuffer);
+			*dp = ' ';
+			dp = asciiBufferPtr + 1;
+			*dp = '\n';
+			dp++;
+
+			/* move to the next asciiBuffer */
+			asciiBufferPtr = dp + hex_display_len - 1;
 		}
 	}
 
 	/* finally ... deal with any partial line */
-	if (0 != i % 16)
+	if (15 != asciiBufferIndex)
 	{
-		for (; i%16 != 0; i++)
+		for (; asciiBufferIndex < 15; asciiBufferIndex++)
 		{
-			asciiBuffer[i%16] = ' ';
+			if (asciiBufferIndex == 7)
+			{
+				*dp = ' ';
+				dp++;
+			}
 			*dp = ' ';
 			dp++;
 			*dp = ' ';
@@ -171,15 +184,19 @@ PHPAPI int php_hexdump(char *src, int src_len, char **dest)
 			*dp = ' ';
 			dp++;
 		}
-
-		sprintf(dp, "%s\n", &asciiBuffer[0]);
-		dp += sizeof(asciiBuffer);
+	
+		/* add the final line ending */
+		*dp = ' ';
+		dp  = asciiBufferPtr + 1;
+		*dp = '\n';
+		dp++;
+		*dp = 0;
 	}
 
 	/*
-	printf("%s\n", *dest);
+	printf("%s--\n", *dest);
 	printf("len: %d; alloc'd size: %d\n", dp - *dest, dest_len);
-	 */
+	*/
 
 	/* return the final length of the buffer */
 	return dp - *dest;
